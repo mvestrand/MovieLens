@@ -1,4 +1,9 @@
+# Ignore Rproject local data
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+
+# Ignore MovieLens data files
+*.zip
+ml-10M100K/
