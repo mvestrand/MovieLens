@@ -3,6 +3,10 @@
 
 source("load_movielens.R")
 
+ml <- load_movielens(verbose=TRUE)
+edx <- ml$edx
+validation <- ml$validation
+
 
 # Q1
 nrow(edx)
