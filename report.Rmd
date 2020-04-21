@@ -6,11 +6,23 @@ output: pdf_document
 
 ## Introduction
 
+- Goal of the project
+- Key steps performed
 
 ## Methods
-
+- Explain process and techniques used including:
+  - data cleaning
+  - data exploration
+  - visualization
+  - insights gained
+  - modeling approach
 
 ## Results
-
+- Present modeling results
+- Discuss model performance
+- RMSE? Target is: RMSE < 0.86490
 
 ## Conclusions
+- Brief summary of the report
+- Limitations
+- Future work
