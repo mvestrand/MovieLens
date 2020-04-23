@@ -31,19 +31,39 @@ split_movielens <- function(dataset, seed=NULL, p = 0.1) {
   train_set <- dataset[-test_index,]
   temp <- dataset[test_index,]
   
-  # Make sure userId and movieId in validation set are also in edx set
+  # Make sure userId and movieId in test set are also in train set
   test_set <- temp %>% 
     semi_join(train_set, by = "movieId") %>%
     semi_join(train_set, by = "userId")
   
-  # Add rows removed from validation set back into edx set
+  # Add rows removed from test set back into train set
   removed <- anti_join(temp, test_set)
   train_set <- rbind(train_set, removed)
   
   return (list(train_set = train_set, test_set = test_set))
 }
 
-
+# Generate bootstrap sets
+bootstrap_movielens <- function(dataset, n = 10, seed = NULL, train_size = 0.5, test_size = 0.5) {
+  # Set random seed if given
+  if (!is.null(seed)) {
+    set.seed(seed, sample.kind="Rounding")
+  }
+  
+  train_sets <- sapply(1:n, simplify=FALSE, FUN=function(i) {
+    sample_frac(train_set, size=train_size, replace=TRUE)
+  })
+  
+  test_sets <- sapply(1:n, simplify=FALSE, FUN=function(i) {
+    temp <- sample_frac(train_set, size=test_size, replace=TRUE)
+    
+    temp %>%
+      semi_join(train_sets[[i]], by = "movieId") %>%
+      semi_join(train_sets[[i]], by = "userId")
+  })
+  
+  return (list(train_sets = train_sets, test_sets = test_sets))
+}
 
 #=====================
 # Data Exploration
@@ -105,11 +125,7 @@ rmse_results <- data_frame(method = "Overall average", RMSE = naive_rmse)
 mu <- mean(train_set$rating)
 movie_avgs <- train_set %>% 
   group_by(movieId) %>% 
-  summarize(b_i = mean(rating - mu))
-
-length(setdiff(unique(train_set$movieId), unique(test_set$movieId)))
-
-movie_avgs %>% qplot(b_i, geom ="histogram", bins = 10, data = ., color = I("black"))
+  summarize(b_i = mean(rating - mu), n_i = n())
 
 y_hat <- test_set %>% 
   left_join(movie_avgs, by='movieId') %>%
@@ -125,11 +141,54 @@ rmse_results <- bind_rows(rmse_results,
 #rmse_results %>% knitr::kable()
 
 
-# Regularized per movie bias
+# L2 Regularized per movie bias
+
+# Create 10 bootstrap sets for cross validation to choose lambda
+lambdas <- seq(0,5,0.25)
+n <- 10
+cv <- bootstrap_movielens(train_set, n=20, train_size=0.1, test_size=0.1)
+
+# Compute mean rmse for each lambda
+lambda_rmses <- sapply(lambdas, function(l){
+  print(l)
+  mean(sapply(1:n, function(i) {
+    mu <- mean(cv$train_sets[[i]]$rating)
+    movie_avgs <- cv$train_sets[[i]] %>%
+      group_by(movieId) %>%
+      summarize(s = sum(rating - mu), n_i = n()) %>%
+      mutate(b_i = s/(n_i+l))
+      
+
+    y_hat <- cv$test_sets[[i]] %>% 
+      left_join(movie_avgs, by='movieId') %>%
+      mutate(y_hat = mu + b_i) %>%
+      .$y_hat
+    RMSE(cv$test_sets[[i]]$rating, y_hat)
+  }))
+})
+
+qplot(lambdas, lambda_rmses)
+best_lambda <- lambdas[which.min(lambda_rmses)]
+
+# Use the best lambda on the actual training set
 mu <- mean(train_set$rating)
-lambda <- 1:100
-movie_avgs <- train_set %>% 
-  group_by(movieId) %>% 
-  summarize(b_i = mean(rating - mu))
+movie_avgs <- train_set %>%
+  group_by(movieId) %>%
+  summarize(s = sum(rating - mu), n_i = n()) %>%
+  mutate(b_i = s/(n_i+best_lambda))
 
+movie_avgs %>% arrange(desc(b_i)) %>%
+  left_join(movie_info) %>%
+  slice(1:20)
 
+y_hat <- test_set %>% 
+  left_join(movie_avgs, by='movieId') %>%
+  mutate(y_hat = mu + b_i) %>%
+  .$y_hat
+
+m2_rmse <- RMSE(test_set$rating, y_hat)
+
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Regularized Movie Effect Model",
+                                     RMSE = m2_rmse))
+rmse_results %>% knitr::kable()
