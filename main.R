@@ -45,24 +45,7 @@ edx %>% filter(is.na(title))
 edx %>% filter(is.na(genres))
 
 
-# Movie count with n ratings
-edx %>% 
-  dplyr::count(movieId) %>% 
-  ggplot(aes(n)) + 
-  geom_histogram(bins = 30, color = "black") + 
-  scale_x_log10() + 
-  ggtitle("Movies")
 
-# Histogram of users with n ratings
-edx %>%
-  dplyr::count(userId) %>% 
-  ggplot(aes(n)) + 
-  geom_histogram(bins = 30, color = "black") + 
-  scale_x_log10() +
-  ggtitle("Users")
-
-# Not nearly as many movies have only 1 rating as did in the smaller movielens dataset, 
-# suggesting regularizing movie effects will not help nearly as much
 
 
 
@@ -131,6 +114,26 @@ res <- update_results_table(res, "Movie + User Effect Model", pred = pred, rmse 
 # ---------------------------------------
 # L2 Regularized per movie bias
 # ---------------------------------------
+# Not nearly as many movies have only 1 rating as did in the smaller movielens dataset, 
+# suggesting regularizing movie effects will not help nearly as much
+
+# Movie count with n ratings
+edx %>% 
+  dplyr::count(movieId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 30, color = "black") + 
+  scale_x_log10() + 
+  ggtitle("Movies")
+
+# Histogram of users with n ratings
+edx %>%
+  dplyr::count(userId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 30, color = "black") + 
+  scale_x_log10() +
+  ggtitle("Users")
+
+
 # Create 10 bootstrap sets for cross validation to choose lambda
 lambdas <- seq(0,5,0.25)
 n <- 10
@@ -174,7 +177,101 @@ res <- update_results_table(res, "Regularized Movie Effect Model", pred = pred, 
 
 
 
+# ----------------------
+# Genre Effect
+# ----------------------
 
+
+# Movie counts for combined genres
+genres <- unique(edx$genres)
+length(genres)
+
+genre_counts <- movie_info %>%
+  group_by(genres) %>%
+  summarize(n=n())
+
+genre_counts %>%
+  ggplot(aes(n)) +
+  geom_histogram(bins = 30, color = "black") +
+  scale_x_log10() +
+  ggtitle("Users")
+
+genre_counts %>% 
+  top_n(30, n) %>%
+  arrange(desc(n)) %>%
+  knitr::kable()
+
+# Movie counts for base genres
+base_genres <- unique(unlist(strsplit(genres, "\\|")))
+base_genres <- base_genres[base_genres!="(no genres listed)"]
+length(base_genres)
+
+one_hot_genres <- movie_info
+for (genre in base_genres) {
+  one_hot_genres[[genre]] <- with(one_hot_genres, ifelse(str_detect(genres,genre), 1, 0))
+}
+
+base_genre_counts <- sapply(base_genres, function(genre) {
+  movie_info %>%
+    filter(str_detect(genres, genre)) %>%
+    nrow()
+})
+
+# Movie and user effect
+mu <- mean(train_set$rating)
+movie_avgs <- train_set %>% 
+  group_by(movieId) %>% 
+  summarize(b_i = mean(rating - mu), n_i = n())
+
+user_avgs <- train_set %>%
+  left_join(movie_avgs, by='movieId') %>%
+  group_by(userId) %>%
+  summarize(b_u = mean(rating - mu - b_i))
+
+
+# Residual after removing movie and user effect
+resid <- train_set %>%
+  left_join(movie_avgs, by='movieId') %>%
+  left_join(user_avgs, by='userId') %>%
+  mutate(r = rating - mu - b_i - b_u)
+
+
+# ! Very slow; needs rework
+user_genre_avgs <- resid %>%
+  select(userId) %>%
+  distinct()
+  
+for (genre in base_genres) {
+  genre_avgs <- resid %>% 
+    group_by(userId) %>%
+    filter(str_detect(genres, genre)) %>%
+    summarise_(.dots = setNames('mean(r)', genre))
+
+  user_genre_avgs <- user_genre_avgs %>%
+    left_join(genre_avgs, by='userId') %>%
+    mutate_(.dots = setNames(paste0('replace_na(`', genre, '`, 0)'), genre))
+  print(genre)
+}
+
+# ?????
+x <- user_genre_avgs %>% select(-userId)
+pca <- prcomp(x)
+qplot(1:length(pca$sdev), y=pca$sdev, xlab="")
+
+
+#user_genre_avgs <- replace_na(user_genre_avgs, 0)
+
+# user_genre_counts <- resid %>
+#   left_join(one_hot_genres, by='movieId') %>%
+#   group_by(userId) %>%
+#   summarise_at(base_genres, sum)
+# 
+# resid %>%
+#   left_join(one_hot_genres, by='movieId') %>%
+#   group_by(userId) %>%
+#   mutate_at(base_genres, )
+
+  
 
 res$rmse %>% knitr::kable()
 
