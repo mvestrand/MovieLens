@@ -1,69 +1,10 @@
 
 source("load_movielens.R")
+source("utility.R")
 
 ml <- load_movielens(verbose=TRUE)
 edx <- ml$edx
 validation <- ml$validation
-
-#=================
-# Functions
-#=================
-
-# Computes the root mean square error for a set of predicted ratings
-#  true_ratings - The actual ratings given
-#  predicted_ratings - The ratings predicted by the algorithm in question
-RMSE <- function(true_ratings, predicted_ratings){
-  sqrt(mean((true_ratings - predicted_ratings)^2))
-}
-
-
-
-# Splits a movielens dataset into training and test sets
-#  dataset - The dataset to split
-#  seed - A random seed to set. Ignored if NULL
-#  p - The fraction of data to use for the test set
-split_movielens <- function(dataset, seed=NULL, p = 0.1) {
-  # Set random seed if given
-  if (!is.null(seed)) {
-    set.seed(seed, sample.kind="Rounding")
-  }
-  test_index <- createDataPartition(y = dataset$rating, times = 1, p = p, list = FALSE)
-  train_set <- dataset[-test_index,]
-  temp <- dataset[test_index,]
-  
-  # Make sure userId and movieId in test set are also in train set
-  test_set <- temp %>% 
-    semi_join(train_set, by = "movieId") %>%
-    semi_join(train_set, by = "userId")
-  
-  # Add rows removed from test set back into train set
-  removed <- anti_join(temp, test_set)
-  train_set <- rbind(train_set, removed)
-  
-  return (list(train_set = train_set, test_set = test_set))
-}
-
-# Generate bootstrap sets
-bootstrap_movielens <- function(dataset, n = 10, seed = NULL, train_size = 0.5, test_size = 0.5) {
-  # Set random seed if given
-  if (!is.null(seed)) {
-    set.seed(seed, sample.kind="Rounding")
-  }
-  
-  train_sets <- sapply(1:n, simplify=FALSE, FUN=function(i) {
-    sample_frac(train_set, size=train_size, replace=TRUE)
-  })
-  
-  test_sets <- sapply(1:n, simplify=FALSE, FUN=function(i) {
-    temp <- sample_frac(train_set, size=test_size, replace=TRUE)
-    
-    temp %>%
-      semi_join(train_sets[[i]], by = "movieId") %>%
-      semi_join(train_sets[[i]], by = "userId")
-  })
-  
-  return (list(train_sets = train_sets, test_sets = test_sets))
-}
 
 #=====================
 # Data Exploration
@@ -116,8 +57,8 @@ test_set <- ml_sets$test_set
 mu_hat <- mean(train_set$rating)
 naive_rmse <- RMSE(test_set$rating, mu_hat)
 
-y_hat <- rep(2.5, nrow(test_set))
-RMSE(test_set$rating, y_hat)
+pred <- rep(2.5, nrow(test_set))
+RMSE(test_set$rating, pred)
 rmse_results <- data_frame(method = "Overall average", RMSE = naive_rmse)
 
 
@@ -127,18 +68,35 @@ movie_avgs <- train_set %>%
   group_by(movieId) %>% 
   summarize(b_i = mean(rating - mu), n_i = n())
 
-y_hat <- test_set %>% 
+pred <- test_set %>% 
   left_join(movie_avgs, by='movieId') %>%
-  mutate(y_hat = mu + b_i) %>%
-  .$y_hat
+  mutate(pred = mu + b_i) %>%
+  .$pred
 
 
-m1_rmse <- RMSE(test_set$rating, y_hat)
+m1_rmse <- RMSE(test_set$rating, pred)
 rmse_results <- bind_rows(rmse_results,
                           data_frame(method="Movie Effect Model",
                                      RMSE = m1_rmse ))
 
-#rmse_results %>% knitr::kable()
+
+# Approximate per movie and per user bias
+user_avgs <- train_set %>%
+  left_join(movie_avgs, by='movieId') %>%
+  group_by(userId) %>%
+  summarize(b_u = mean(rating - mu - b_i))
+
+pred <- test_set %>% 
+  left_join(movie_avgs, by='movieId') %>%
+  left_join(user_avgs, by="userId") %>%
+  mutate(pred = mu + b_i + b_u) %>%
+  .$pred
+
+model_2_rmse <- RMSE(test_set$rating, pred)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie + User Effect Model",
+                                     RMSE = m2_rmse ))
+
 
 
 # L2 Regularized per movie bias
@@ -159,11 +117,11 @@ lambda_rmses <- sapply(lambdas, function(l){
       mutate(b_i = s/(n_i+l))
       
 
-    y_hat <- cv$test_sets[[i]] %>% 
+    pred <- cv$test_sets[[i]] %>% 
       left_join(movie_avgs, by='movieId') %>%
-      mutate(y_hat = mu + b_i) %>%
-      .$y_hat
-    RMSE(cv$test_sets[[i]]$rating, y_hat)
+      mutate(pred = mu + b_i) %>%
+      .$pred
+    RMSE(cv$test_sets[[i]]$rating, pred)
   }))
 })
 
@@ -177,18 +135,35 @@ movie_avgs <- train_set %>%
   summarize(s = sum(rating - mu), n_i = n()) %>%
   mutate(b_i = s/(n_i+best_lambda))
 
-movie_avgs %>% arrange(desc(b_i)) %>%
-  left_join(movie_info) %>%
-  slice(1:20)
-
-y_hat <- test_set %>% 
+pred <- test_set %>% 
   left_join(movie_avgs, by='movieId') %>%
-  mutate(y_hat = mu + b_i) %>%
-  .$y_hat
+  mutate(pred = mu + b_i) %>%
+  .$pred
 
-m2_rmse <- RMSE(test_set$rating, y_hat)
+m3_rmse <- RMSE(test_set$rating, pred)
 
 rmse_results <- bind_rows(rmse_results,
                           data_frame(method="Regularized Movie Effect Model",
-                                     RMSE = m2_rmse))
+                                     RMSE = m3_rmse))
+
+# Movie count with n ratings
+movielens %>% 
+  dplyr::count(movieId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 30, color = "black") + 
+  scale_x_log10() + 
+  ggtitle("Movies")
+
+# Histogram of users with n ratings
+movielens %>%
+  dplyr::count(userId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 30, color = "black") + 
+  scale_x_log10() +
+  ggtitle("Users")
+
+
+
+
 rmse_results %>% knitr::kable()
+
