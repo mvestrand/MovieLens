@@ -44,25 +44,55 @@ edx %>% filter(is.na(timestamp))
 edx %>% filter(is.na(title))
 edx %>% filter(is.na(genres))
 
+
+# Movie count with n ratings
+edx %>% 
+  dplyr::count(movieId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 30, color = "black") + 
+  scale_x_log10() + 
+  ggtitle("Movies")
+
+# Histogram of users with n ratings
+edx %>%
+  dplyr::count(userId) %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 30, color = "black") + 
+  scale_x_log10() +
+  ggtitle("Users")
+
+# Not nearly as many movies have only 1 rating as did in the smaller movielens dataset, 
+# suggesting regularizing movie effects will not help nearly as much
+
+
+
+# ============================
+# Comparing Methods
+# ============================
+
+
 # Split into training and test sets
 ml_sets <- split_movielens(edx, 7)
 train_set <- ml_sets$train_set
 test_set <- ml_sets$test_set
 
 
+# Test some different models previously used in the course
+res <- create_results_table()
 
-## Test some different models previously used in the course
-
+# ---------------------------------------
 # Guess the average rating regardless of user or movie
-mu_hat <- mean(train_set$rating)
-naive_rmse <- RMSE(test_set$rating, mu_hat)
+# ---------------------------------------
+mu <- mean(train_set$rating)
+pred <- rep(mu, nrow(test_set))
 
-pred <- rep(2.5, nrow(test_set))
-RMSE(test_set$rating, pred)
-rmse_results <- data_frame(method = "Overall average", RMSE = naive_rmse)
+res <- update_results_table(res, "Overall average", pred = pred, rmse = RMSE(test_set$rating, pred))
 
 
+
+# ---------------------------------------
 # Approximate per movie bias via average rating
+# ---------------------------------------
 mu <- mean(train_set$rating)
 movie_avgs <- train_set %>% 
   group_by(movieId) %>% 
@@ -73,14 +103,16 @@ pred <- test_set %>%
   mutate(pred = mu + b_i) %>%
   .$pred
 
+res <- update_results_table(res, "Movie Effect Model", pred = pred, rmse = RMSE(test_set$rating, pred))
 
-m1_rmse <- RMSE(test_set$rating, pred)
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Movie Effect Model",
-                                     RMSE = m1_rmse ))
-
-
+# ---------------------------------------
 # Approximate per movie and per user bias
+# ---------------------------------------
+mu <- mean(train_set$rating)
+movie_avgs <- train_set %>% 
+  group_by(movieId) %>% 
+  summarize(b_i = mean(rating - mu), n_i = n())
+
 user_avgs <- train_set %>%
   left_join(movie_avgs, by='movieId') %>%
   group_by(userId) %>%
@@ -92,15 +124,13 @@ pred <- test_set %>%
   mutate(pred = mu + b_i + b_u) %>%
   .$pred
 
-model_2_rmse <- RMSE(test_set$rating, pred)
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Movie + User Effect Model",
-                                     RMSE = m2_rmse ))
+res <- update_results_table(res, "Movie + User Effect Model", pred = pred, rmse = RMSE(test_set$rating, pred))
 
 
 
+# ---------------------------------------
 # L2 Regularized per movie bias
-
+# ---------------------------------------
 # Create 10 bootstrap sets for cross validation to choose lambda
 lambdas <- seq(0,5,0.25)
 n <- 10
@@ -140,30 +170,11 @@ pred <- test_set %>%
   mutate(pred = mu + b_i) %>%
   .$pred
 
-m3_rmse <- RMSE(test_set$rating, pred)
-
-rmse_results <- bind_rows(rmse_results,
-                          data_frame(method="Regularized Movie Effect Model",
-                                     RMSE = m3_rmse))
-
-# Movie count with n ratings
-movielens %>% 
-  dplyr::count(movieId) %>% 
-  ggplot(aes(n)) + 
-  geom_histogram(bins = 30, color = "black") + 
-  scale_x_log10() + 
-  ggtitle("Movies")
-
-# Histogram of users with n ratings
-movielens %>%
-  dplyr::count(userId) %>% 
-  ggplot(aes(n)) + 
-  geom_histogram(bins = 30, color = "black") + 
-  scale_x_log10() +
-  ggtitle("Users")
+res <- update_results_table(res, "Regularized Movie Effect Model", pred = pred, rmse = RMSE(test_set$rating, pred))
 
 
 
 
-rmse_results %>% knitr::kable()
+
+res$rmse %>% knitr::kable()
 

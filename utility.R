@@ -1,5 +1,25 @@
 # Utility functions
 
+# Creates a new table for storing results
+create_results_table <- function() {
+    return (list(rmse=data.frame(method=character(), rmse=double()), pred=list() ))
+}
+
+# Updates or creates a new row in the results table
+update_results_table <- function(results_table, method_name, pred, rmse) {
+  # Add the predicted values
+  results_table$pred[method_name] <- list(pred)
+
+  
+  results_table$rmse <- res$rmse %>%
+    filter(method != method_name) %>%
+    rbind(data.table(method=method_name, rmse=rmse))
+  return (results_table)
+}
+
+
+
+
 
 # Computes the root mean square error for a set of predicted ratings
 #  true_ratings - The actual ratings given
