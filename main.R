@@ -224,7 +224,7 @@ genre_counts %>%
   knitr::kable()
 
 
-# Predict movie ratings 
+# Predict movie ratings using user avg genre rating
 reg_genre_bias_predict <- function(train_set, test_set, l) {
   # Get the base genre strings
   base_genres <- unique(unlist(strsplit(genres, "\\|")))
@@ -345,120 +345,7 @@ reg_genre_bias_predict <- function(train_set, test_set, l) {
   return(pred)
 }  
 
-
-# # Movie counts for base genres
-# base_genres <- unique(unlist(strsplit(genres, "\\|")))
-# base_genres <- base_genres[base_genres!="(no genres listed)"]
-# length(base_genres)
-# 
-# 
-# # Create movie genre table with one hot encoding
-# one_hot_genres <- movie_info
-# i <- 0
-# for (genre in base_genres) {
-#   i <- i+1
-#   one_hot_genres[[sprintf("g%02d", i)]] <- with(one_hot_genres, ifelse(str_detect(genres,genre), 1, 0))
-# }
-# 
-# one_hot_genres <- one_hot_genres %>% select(movieId, g01:g19)
-# 
-# 
-# # Movie and user effect
-# mu <- mean(train_set$rating)
-# movie_avgs <- train_set %>% 
-#   group_by(movieId) %>% 
-#   summarize(b_i = mean(rating - mu), n_i = n())
-# 
-# user_avgs <- train_set %>%
-#   left_join(movie_avgs, by='movieId') %>%
-#   group_by(userId) %>%
-#   summarize(b_u = mean(rating - mu - b_i))
-# 
-# 
-# # Residual after removing movie and user effect
-# resid <- train_set %>%
-#   left_join(movie_avgs, by='movieId') %>%
-#   left_join(user_avgs, by='userId') %>%
-#   mutate(r = rating - mu - b_i - b_u)
-# 
-# 
-# user_genre_avgs <- resid %>%
-#   left_join(one_hot_genres, by='movieId') %>%
-#   group_by(userId) %>%
-#   mutate(r01=g01*r,
-#          r02=g02*r,
-#          r03=g03*r,
-#          r04=g04*r,
-#          r05=g05*r,
-#          r06=g06*r,
-#          r07=g07*r,
-#          r08=g08*r,
-#          r09=g09*r,
-#          r10=g10*r,
-#          r11=g11*r,
-#          r12=g12*r,
-#          r13=g13*r,
-#          r14=g14*r,
-#          r15=g15*r,
-#          r16=g16*r,
-#          r17=g17*r,
-#          r18=g18*r,
-#          r19=g19*r) %>%
-#   summarize(r01=sum(r01)/sum(g01),
-#             r02=sum(r02)/sum(g02),
-#             r03=sum(r03)/sum(g03),
-#             r04=sum(r04)/sum(g04),
-#             r05=sum(r05)/sum(g05),
-#             r06=sum(r06)/sum(g06),
-#             r07=sum(r07)/sum(g07),
-#             r08=sum(r08)/sum(g08),
-#             r09=sum(r09)/sum(g09),
-#             r10=sum(r10)/sum(g10),
-#             r11=sum(r11)/sum(g11),
-#             r12=sum(r12)/sum(g12),
-#             r13=sum(r13)/sum(g13),
-#             r14=sum(r14)/sum(g14),
-#             r15=sum(r15)/sum(g15),
-#             r16=sum(r16)/sum(g16),
-#             r17=sum(r17)/sum(g17),
-#             r18=sum(r18)/sum(g18),
-#             r19=sum(r19)/sum(g19)) %>%
-#   mutate(r01=ifelse(is.nan(r01), 0, r01),
-#          r02=ifelse(is.nan(r02), 0, r02),
-#          r03=ifelse(is.nan(r03), 0, r03),
-#          r04=ifelse(is.nan(r04), 0, r04),
-#          r05=ifelse(is.nan(r05), 0, r05),
-#          r06=ifelse(is.nan(r06), 0, r06),
-#          r07=ifelse(is.nan(r07), 0, r07),
-#          r08=ifelse(is.nan(r08), 0, r08),
-#          r09=ifelse(is.nan(r09), 0, r09),
-#          r10=ifelse(is.nan(r10), 0, r10),
-#          r11=ifelse(is.nan(r11), 0, r11),
-#          r12=ifelse(is.nan(r12), 0, r12),
-#          r13=ifelse(is.nan(r13), 0, r13),
-#          r14=ifelse(is.nan(r14), 0, r14),
-#          r15=ifelse(is.nan(r15), 0, r15),
-#          r16=ifelse(is.nan(r16), 0, r16),
-#          r17=ifelse(is.nan(r17), 0, r17),
-#          r18=ifelse(is.nan(r18), 0, r18),
-#          r19=ifelse(is.nan(r19), 0, r19)
-#   )
-# 
-# pred <- test_set %>%
-#   left_join(user_genre_avgs, by='userId') %>%
-#   left_join(one_hot_genres, by='movieId') %>%
-#   mutate(
-#       b_g=(r01*g01 + r02*g02 + r03*g03 + r04*g04 + r05*g05 +
-#            r06*g06 + r07*g07 + r08*g08 + r09*g09 + r10*g10 +
-#            r11*g11 + r12*g12 + r13*g13 + r14*g14 + r15*g15 +
-#            r16*g16 + r17*g17 + r18*g18 + r19*g19)/
-#         (g01 + g02 + g03 + g04 + g05 + g06 + g07 + g08 + g09 + g10 +
-#          g11 + g12 + g13 + g14 + g15 + g16 + g17 + g18 + g19)) %>%
-#   left_join(movie_avgs, by='movieId') %>%
-#   left_join(user_avgs, by='userId') %>%
-#   mutate(pred = mu + b_i + b_u + b_g) %>%
-#   .$pred
-
+pred <- reg_genre_bias_predict(train_set, test_set, 0)
 res <- update_results_table(res, "User Genre Bias Model", pred = pred, rmse = RMSE(test_set$rating, pred))
 
 
@@ -466,7 +353,17 @@ res <- update_results_table(res, "User Genre Bias Model", pred = pred, rmse = RM
 # Regularized User Genre Effect
 # ----------------------
 
-# Histogram of users reviews for each genre
+# Histogram of users with n reviews for a combined genre
+train_set %>%
+  group_by(userId, genres) %>%
+  summarize(n=n()) %>%
+  ggplot(aes(n)) +
+  geom_histogram(bins=30, color='black') +
+  scale_x_continuous(trans='log2') +
+  ggtitle('Users with n Reviews for Combined Genres')
+
+
+# Histogram of users with n reviews for separated genres
 user_genre_counts <- train_set %>%
   left_join(one_hot_genres, by='movieId') %>%
   group_by(userId) %>%
@@ -489,113 +386,99 @@ user_genre_counts <- train_set %>%
             s17=sum(g17), 
             s18=sum(g18), 
             s19=sum(g19)) %>%
-  gather(s01:s19, key='genre', value='count')
+  gather(s01:s19, key='genre', value='n')
 
 user_genre_counts %>%
-  filter(count != 0) %>%
-  ggplot(aes(count)) +
+  filter(n != 0) %>%
+  ggplot(aes(n)) +
   geom_histogram(bins = 30, color = "black") +
   scale_x_continuous(trans='log2') +
-  ggtitle("Users")
+  ggtitle("Users with n Reviews for Separated Genres")
 
 
-# Regularization parameters
+
+
+# Find best lambda
 lambdas <- seq(0,5,0.25)
-
 rmses <- lapply(lambdas, function(l) {
-  
-  pred <- reg_genre_bias_predict(train_set, test_set, l)
-
   print(l)
+  pred <- reg_genre_bias_predict(train_set, test_set, l)
   return(RMSE(test_set$rating, pred))
 })
-
 
 l <- lambdas[which.min(rmses)]
 plot(lambdas, rmses)
 
-# user_genre_avgs <- resid %>%
-#   left_join(one_hot_genres, by='movieId') %>%
-#   group_by(userId) %>%
-#   mutate(r01=g01*r,
-#          r02=g02*r,
-#          r03=g03*r,
-#          r04=g04*r,
-#          r05=g05*r,
-#          r06=g06*r,
-#          r07=g07*r,
-#          r08=g08*r,
-#          r09=g09*r,
-#          r10=g10*r,
-#          r11=g11*r,
-#          r12=g12*r,
-#          r13=g13*r,
-#          r14=g14*r,
-#          r15=g15*r,
-#          r16=g16*r,
-#          r17=g17*r,
-#          r18=g18*r,
-#          r19=g19*r) %>%
-#   summarize(r01=sum(r01)/(sum(g01)+l),
-#             r02=sum(r02)/(sum(g02)+l),
-#             r03=sum(r03)/(sum(g03)+l),
-#             r04=sum(r04)/(sum(g04)+l),
-#             r05=sum(r05)/(sum(g05)+l),
-#             r06=sum(r06)/(sum(g06)+l),
-#             r07=sum(r07)/(sum(g07)+l),
-#             r08=sum(r08)/(sum(g08)+l),
-#             r09=sum(r09)/(sum(g09)+l),
-#             r10=sum(r10)/(sum(g10)+l),
-#             r11=sum(r11)/(sum(g11)+l),
-#             r12=sum(r12)/(sum(g12)+l),
-#             r13=sum(r13)/(sum(g13)+l),
-#             r14=sum(r14)/(sum(g14)+l),
-#             r15=sum(r15)/(sum(g15)+l),
-#             r16=sum(r16)/(sum(g16)+l),
-#             r17=sum(r17)/(sum(g17)+l),
-#             r18=sum(r18)/(sum(g18)+l),
-#             r19=sum(r19)/(sum(g19)+l)) %>%
-#   mutate(r01=ifelse(is.nan(r01), 0, r01),
-#          r02=ifelse(is.nan(r02), 0, r02),
-#          r03=ifelse(is.nan(r03), 0, r03),
-#          r04=ifelse(is.nan(r04), 0, r04),
-#          r05=ifelse(is.nan(r05), 0, r05),
-#          r06=ifelse(is.nan(r06), 0, r06),
-#          r07=ifelse(is.nan(r07), 0, r07),
-#          r08=ifelse(is.nan(r08), 0, r08),
-#          r09=ifelse(is.nan(r09), 0, r09),
-#          r10=ifelse(is.nan(r10), 0, r10),
-#          r11=ifelse(is.nan(r11), 0, r11),
-#          r12=ifelse(is.nan(r12), 0, r12),
-#          r13=ifelse(is.nan(r13), 0, r13),
-#          r14=ifelse(is.nan(r14), 0, r14),
-#          r15=ifelse(is.nan(r15), 0, r15),
-#          r16=ifelse(is.nan(r16), 0, r16),
-#          r17=ifelse(is.nan(r17), 0, r17),
-#          r18=ifelse(is.nan(r18), 0, r18),
-#          r19=ifelse(is.nan(r19), 0, r19)
-#   )
-# 
-# pred <- test_set %>%
-#   left_join(user_genre_avgs, by='userId') %>%
-#   left_join(one_hot_genres, by='movieId') %>%
-#   mutate(
-#     b_g=(r01*g01 + r02*g02 + r03*g03 + r04*g04 + r05*g05 +
-#            r06*g06 + r07*g07 + r08*g08 + r09*g09 + r10*g10 +
-#            r11*g11 + r12*g12 + r13*g13 + r14*g14 + r15*g15 +
-#            r16*g16 + r17*g17 + r18*g18 + r19*g19)/
-#       (g01 + g02 + g03 + g04 + g05 + g06 + g07 + g08 + g09 + g10 +
-#          g11 + g12 + g13 + g14 + g15 + g16 + g17 + g18 + g19)) %>%
-#   left_join(movie_avgs, by='movieId') %>%
-#   left_join(user_avgs, by='userId') %>%
-#   mutate(pred = mu + b_i + b_u + b_g) %>%
-#   .$pred
-
+pred <- reg_genre_bias_predict(train_set, test_set, l)
 res <- update_results_table(res, "Regularized User Genre Bias Model", pred = pred, rmse = RMSE(test_set$rating, pred))
 
 res$rmse %>% knitr::kable()
 
 
 
+# Final RMSE for full data set
+pred <- reg_genre_bias_model(edx, validation, l)
+rmse = RMSE(validation$rating, pred)
+
+# cbind(validation, pred) %>%
+#   mutate(diff=rating-pred) %>%
+#   arrange(-diff) %>%
+#   top_n(1, diff) %>%
+#   select(userId) %>%
+#   left_join(edx)
 
 
+
+
+
+
+
+#-------------------------
+# Matrix Factorization
+#-------------------------
+library(recosystem)
+
+set.seed(7, sample.kind='Rounding')
+
+movie_info <- train_set %>% 
+  select(movieId, title, genres) %>%
+  distinct()
+
+# Movie and user effect
+mu <- mean(train_set$rating)
+movie_avgs <- train_set %>% 
+  group_by(movieId) %>% 
+  summarize(b_i = mean(rating - mu), n_i = n())
+
+user_avgs <- train_set %>%
+  left_join(movie_avgs, by='movieId') %>%
+  group_by(userId) %>%
+  summarize(b_u = mean(rating - mu - b_i))
+
+
+# Residual after removing movie and user effect
+resid <- train_set %>%
+  left_join(movie_avgs, by='movieId') %>%
+  left_join(user_avgs, by='userId') %>%
+  mutate(r = rating - mu - b_i - b_u)
+
+reco <- Reco()
+train_set_reco <- data_memory(user_index=resid$userId, item_index=resid$movieId, rating=resid$r, index1=TRUE)
+test_set_reco <- data_memory(user_index=test_set$userId, item_index=test_set$movieId, index1=TRUE)
+opts <- reco$tune(train_set_reco, opts = list(dim = c(10, 20, 30, 40, 50), lrate = c(0.1, 0.2),
+                                         costp_l1=0, costq_l1=0,
+                                         nthread = 4, niter = 10))
+
+opts
+reco$train(train_set_reco, opts = c(opts$min, nthread=4, niter=20))
+r <- reco$predict(test_set_reco, out_memory())
+
+pred <- cbind(test_set, r) %>% 
+  left_join(movie_avgs, by='movieId') %>%
+  left_join(user_avgs, by="userId") %>%
+  mutate(pred = mu + b_i + b_u + r) %>%
+  .$pred
+
+res <- update_results_table(res, "Matrix Factorization Model", pred = pred, rmse = RMSE(test_set$rating, pred))
+
+res$rmse %>% knitr::kable()
